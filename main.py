@@ -198,10 +198,10 @@ def add_routes(app):
         schemas = db.query(JSONSchemaDB).all()
         return [db_to_response(schema) for schema in schemas]
 
-    @app.get("/schemas/{schema_uuid}", response_model=SchemaResponse)
-    async def get_schema(schema_uuid: str, db: Session = Depends(get_db)):
+    @app.get("/schemas/{schema_name}", response_model=SchemaResponse)
+    async def get_schema(schema_name: str, db: Session = Depends(get_db)):
         """Get a specific JSON schema by UUID"""
-        schema = db.query(JSONSchemaDB).filter(JSONSchemaDB.schema_uuid == schema_uuid).first()
+        schema = db.query(JSONSchemaDB).filter(JSONSchemaDB.name == schema_name).first()
         if not schema:
             raise HTTPException(status_code=404, detail="Schema not found")
         return db_to_response(schema)
