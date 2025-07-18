@@ -1,9 +1,11 @@
 import json
 import uuid
+import jsonschema
+from jsonschema import SchemaError, ValidationError, validate
 from typing import List
 from fastapi import FastAPI, HTTPException, Depends, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import String, cast, text
+from sqlalchemy import String, cast, or_, text
 from models import (
     DatasetCreate,
     DatasetResponse,
@@ -17,7 +19,6 @@ from models import (
     json_schema_db_to_response,
 )
 from database import DatabaseManager
-from sqlalchemy import text, or_
 
 
 class SchemaRegistryAPI:
@@ -40,17 +41,6 @@ class SchemaRegistryAPI:
         return app
 
     def _add_routes(self):
-        tags_metadata = [
-            {
-                "name": "JSON Schemas",
-                "description": "Operations with JSON schemas.",
-            },
-            {
-                "name": "JSON Datasets",
-                "description": "Operations with JSON datasets.",
-            },
-        ]
-
         @self.app.get(
             "/schemas", response_model=List[SchemaResponse], tags=["JSON Schemas"]
         )
@@ -151,14 +141,35 @@ class SchemaRegistryAPI:
                     status_code=400, detail="Schema name already exists"
                 )
 
+            try:
+                parsed_schema = json.loads(schema.schema_content)
+            except json.JSONDecodeError as e:
+                raise HTTPException(
+                    status_code=400, detail=f"Invalid JSON format: {str(e)}"
+                )
+
+            try:
+                jsonschema.validators.validator_for(parsed_schema).check_schema(
+                    parsed_schema
+                )
+            except SchemaError as e:
+                raise HTTPException(
+                    status_code=400, detail=f"Invalid JSON Schema: {str(e)}"
+                )
+            except Exception as e:
+                raise HTTPException(
+                    status_code=400, detail=f"Schema validation error: {str(e)}"
+                )
+
             schema_uuid = str(uuid.uuid4())
 
             db_schema = JSONSchemaDB(
                 schema_uuid=schema_uuid,
                 name=schema.name,
                 description=schema.description,
-                schema_content=json.loads(schema.schema_content),
+                schema_content=parsed_schema,
             )
+
             db.add(db_schema)
             db.commit()
             db.refresh(db_schema)
@@ -221,7 +232,28 @@ class SchemaRegistryAPI:
             if schema_update.description is not None:
                 schema.description = schema_update.description
             if schema_update.schema_content is not None:
-                schema.schema_content = json.loads(schema_update.schema_content)
+                try:
+                    parsed_content = json.loads(schema_update.schema_content)
+                except json.JSONDecodeError as e:
+                    raise HTTPException(
+                        status_code=400, detail=f"Invalid JSON format: {str(e)}"
+                    )
+
+                try:
+                    jsonschema.validators.validator_for(parsed_content).check_schema(
+                        parsed_content
+                    )
+                except SchemaError as e:
+                    raise HTTPException(
+                        status_code=400, detail=f"Invalid JSON Schema: {str(e)}"
+                    )
+                except Exception as e:
+                    raise HTTPException(
+                        status_code=400, detail=f"Schema validation error: {str(e)}"
+                    )
+
+                schema.schema_content = parsed_content
+
 
             db.commit()
             db.refresh(schema)
@@ -288,7 +320,7 @@ class SchemaRegistryAPI:
 
             datasets = db.query(JSONDatasetDB).filter(or_(*conditions)).all()
             return [json_dataset_db_to_response(dataset) for dataset in datasets]
-        
+
         @self.app.get(
             "/datasets/search/key",
             response_model=List[DatasetResponse],
@@ -348,7 +380,6 @@ class SchemaRegistryAPI:
 
             return [json_dataset_db_to_response(dataset) for dataset in datasets]
 
-
         @self.app.post(
             "/datasets",
             response_model=DatasetResponse,
@@ -368,13 +399,44 @@ class SchemaRegistryAPI:
                     status_code=400, detail="Dataset name already exists"
                 )
 
+            schema_record = (
+                db.query(JSONSchemaDB)
+                .filter(JSONSchemaDB.schema_uuid == dataset.schema_uuid)
+                .first()
+            )
+            if not schema_record:
+                raise HTTPException(
+                    status_code=404, 
+                    detail=f"Schema with UUID {dataset.schema_uuid} not found"
+                )
+
+            try:
+                parsed_content = json.loads(dataset.dataset_content)
+            except json.JSONDecodeError as e:
+                raise HTTPException(
+                    status_code=400, detail=f"Invalid JSON format: {str(e)}"
+                )
+
+            try:
+                validate(instance=parsed_content, schema=schema_record.schema_content)
+            except ValidationError as e:
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"Dataset validation failed: {e.message}"
+                )
+            except Exception as e:
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"Schema validation error: {str(e)}"
+                )
+
             dataset_uuid = str(uuid.uuid4())
             db_dataset = JSONDatasetDB(
                 dataset_uuid=dataset_uuid,
                 schema_uuid=dataset.schema_uuid,
                 name=dataset.name,
                 description=dataset.description,
-                dataset_content=json.loads(dataset.dataset_content),
+                dataset_content=parsed_content,
             )
 
             db.add(db_dataset)
@@ -459,7 +521,14 @@ class SchemaRegistryAPI:
             if dataset_update.schema_uuid is not None:
                 dataset.schema_uuid = dataset_update.schema_uuid
             if dataset_update.dataset_content is not None:
-                dataset.dataset_content = json.loads(dataset_update.dataset_content)
+                try:
+                    parsed_content = json.loads(dataset_update.dataset_content)
+                except json.JSONDecodeError as e:
+                    raise HTTPException(
+                        status_code=400, detail=f"Invalid JSON format: {str(e)}"
+                    )
+
+                dataset.dataset_content = parsed_content
 
             db.commit()
             db.refresh(dataset)
