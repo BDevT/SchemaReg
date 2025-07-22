@@ -11,6 +11,18 @@ A FastAPI-based JSON Schema Registry for storing and serving JSON schemas.
 docker run -p 8000:8000 -v $(pwd)/data:/app/data ghcr.io/bdevt/schemareg:latest
 ```
 
+### Using Docker Compose with PostgreSQL
+
+1. Create a postgres_data directory to persist PostgreSQL data:
+   ```bash
+   mkdir postgres_data
+   ```
+
+2. Run the following command to start PostgreSQL and the registry:
+   ```bash
+   docker-compose up -d
+   ```
+
 ### Local Development
 
 ```bash

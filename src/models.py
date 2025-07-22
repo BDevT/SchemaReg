@@ -2,13 +2,11 @@
 Database models and Pydantic schemas for JSON Schema Registry
 """
 
-from datetime import datetime
-from typing import Optional, Dict, Any
-from sqlalchemy import Column, ForeignKey, Integer, String, Text, DateTime
+from typing import Optional
+from sqlalchemy import Column, Integer, String, Text, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import relationship
 from pydantic import BaseModel
 import json
 

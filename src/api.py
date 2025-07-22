@@ -528,6 +528,30 @@ class SchemaRegistryAPI:
                         status_code=400, detail=f"Invalid JSON format: {str(e)}"
                     )
 
+                schema_record = (
+                    db.query(JSONSchemaDB)
+                    .filter(JSONSchemaDB.schema_uuid == dataset.schema_uuid)
+                    .first()
+                )
+                if not schema_record:
+                    raise HTTPException(
+                        status_code=404, 
+                        detail=f"Schema with UUID {dataset.schema_uuid} not found"
+                    )
+
+                try:
+                    validate(instance=parsed_content, schema=schema_record.schema_content)
+                except ValidationError as e:
+                    raise HTTPException(
+                        status_code=400, 
+                        detail=f"Dataset validation failed: {e.message}"
+                    )
+                except Exception as e:
+                    raise HTTPException(
+                        status_code=400, 
+                        detail=f"Schema validation error: {str(e)}"
+                    )
+
                 dataset.dataset_content = parsed_content
 
             db.commit()

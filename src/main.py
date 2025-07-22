@@ -23,7 +23,7 @@ def main():
         api = SchemaRegistryAPI(db_manager)
         app = api.get_app()
 
-        print(f"Starting JSON Schema Registry API...")
+        print("Starting JSON Schema Registry API...")
         print(f"Server will run on: http://{config.host}:{config.port}")
         print(f"API Documentation: http://{config.host}:{config.port}/docs")
         print(f"Database type: {config.db_type}")
