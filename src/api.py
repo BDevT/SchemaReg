@@ -1,5 +1,6 @@
 import json
 import uuid
+from fastapi.concurrency import asynccontextmanager
 import jsonschema
 from jsonschema import SchemaError, ValidationError, validate
 from typing import List
@@ -21,22 +22,27 @@ from models import (
 from database import DatabaseManager
 
 
-class SchemaRegistryAPI:
+class BusinessMetadataAPI:
     def __init__(self, db_manager: DatabaseManager):
         self.db_manager = db_manager
         self.app = self._create_app()
         self._add_routes()
 
+
+    @asynccontextmanager
+    async def lifespan(self, app: FastAPI):
+        self.db_manager.create_tables()
+        yield
+        self.db_manager.close()
+
+
     def _create_app(self) -> FastAPI:
         app = FastAPI(
-            title="JSON Schema Registry",
-            description="A REST API for managing JSON schemas",
+            title="Business Metadata API",
+            description="A REST API for managing business metadata",
             version="1.0.0",
+            lifespan=self.lifespan
         )
-
-        @app.on_event("startup")
-        async def startup():
-            self.db_manager.create_tables()
 
         return app
 
@@ -254,7 +260,6 @@ class SchemaRegistryAPI:
 
                 schema.schema_content = parsed_content
 
-
             db.commit()
             db.refresh(schema)
 
@@ -406,8 +411,8 @@ class SchemaRegistryAPI:
             )
             if not schema_record:
                 raise HTTPException(
-                    status_code=404, 
-                    detail=f"Schema with UUID {dataset.schema_uuid} not found"
+                    status_code=404,
+                    detail=f"Schema with UUID {dataset.schema_uuid} not found",
                 )
 
             try:
@@ -421,13 +426,11 @@ class SchemaRegistryAPI:
                 validate(instance=parsed_content, schema=schema_record.schema_content)
             except ValidationError as e:
                 raise HTTPException(
-                    status_code=400, 
-                    detail=f"Dataset validation failed: {e.message}"
+                    status_code=400, detail=f"Dataset validation failed: {e.message}"
                 )
             except Exception as e:
                 raise HTTPException(
-                    status_code=400, 
-                    detail=f"Schema validation error: {str(e)}"
+                    status_code=400, detail=f"Schema validation error: {str(e)}"
                 )
 
             dataset_uuid = str(uuid.uuid4())
@@ -535,21 +538,22 @@ class SchemaRegistryAPI:
                 )
                 if not schema_record:
                     raise HTTPException(
-                        status_code=404, 
-                        detail=f"Schema with UUID {dataset.schema_uuid} not found"
+                        status_code=404,
+                        detail=f"Schema with UUID {dataset.schema_uuid} not found",
                     )
 
                 try:
-                    validate(instance=parsed_content, schema=schema_record.schema_content)
+                    validate(
+                        instance=parsed_content, schema=schema_record.schema_content
+                    )
                 except ValidationError as e:
                     raise HTTPException(
-                        status_code=400, 
-                        detail=f"Dataset validation failed: {e.message}"
+                        status_code=400,
+                        detail=f"Dataset validation failed: {e.message}",
                     )
                 except Exception as e:
                     raise HTTPException(
-                        status_code=400, 
-                        detail=f"Schema validation error: {str(e)}"
+                        status_code=400, detail=f"Schema validation error: {str(e)}"
                     )
 
                 dataset.dataset_content = parsed_content

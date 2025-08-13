@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-JSON Schema Registry API
-A FastAPI application for managing JSON schemas with database storage.
+Business Metadata API
+A FastAPI application for managing business metadata with database storage.
 """
 
 import sys
 import uvicorn
 from config import parse_args
 from database import DatabaseManager
-from api import SchemaRegistryAPI
+from api import BusinessMetadataAPI
 
 
 def main():
@@ -20,10 +20,10 @@ def main():
             db_type=config.db_type, db_file=config.db_file, db_url=config.db_url
         )
 
-        api = SchemaRegistryAPI(db_manager)
+        api = BusinessMetadataAPI(db_manager)
         app = api.get_app()
 
-        print("Starting JSON Schema Registry API...")
+        print("Starting Business Metadata API...")
         print(f"Server will run on: http://{config.host}:{config.port}")
         print(f"API Documentation: http://{config.host}:{config.port}/docs")
         print(f"Database type: {config.db_type}")

@@ -1,5 +1,5 @@
 """
-Configuration management for JSON Schema Registry
+Configuration management for Business Metadata API
 """
 
 import argparse
@@ -21,7 +21,7 @@ class Config:
 
 def parse_args() -> Config:
     """Parse command line arguments and return configuration"""
-    parser = argparse.ArgumentParser(description="JSON Schema Registry API")
+    parser = argparse.ArgumentParser(description="Business Metadata API")
 
     parser.add_argument(
         "--db-type",
