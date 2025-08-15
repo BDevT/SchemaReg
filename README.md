@@ -1,6 +1,6 @@
 # Schema Reg
 
-A FastAPI-based JSON Schema Registry for storing and serving JSON schemas.
+A FastAPI-based Business Metadata API
 
 ## Quick Start
 
