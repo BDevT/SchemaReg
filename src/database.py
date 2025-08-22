@@ -4,7 +4,7 @@ Database configuration and session management
 
 from pathlib import Path
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.orm import sessionmaker
 from models import Base
 
 
@@ -74,10 +74,6 @@ class DatabaseManager:
             print(f"Error creating database tables: {e}")
             raise
 
-    def get_session(self) -> Session:
-        """Get a new database session"""
-        return self.SessionLocal()
-
     def get_db(self):
         """Dependency for FastAPI to get database session"""
         db = self.SessionLocal()
@@ -85,3 +81,7 @@ class DatabaseManager:
             yield db
         finally:
             db.close()
+
+    def close(self):
+        """Close the database connection"""
+        self.engine.dispose()

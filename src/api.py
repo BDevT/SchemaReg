@@ -1,5 +1,6 @@
 import json
 import uuid
+from fastapi.concurrency import asynccontextmanager
 import jsonschema
 from jsonschema import SchemaError, ValidationError, validate
 from typing import List
@@ -19,24 +20,30 @@ from models import (
     json_schema_db_to_response,
 )
 from database import DatabaseManager
+from resolver import _resolve_schema_refs
 
 
-class SchemaRegistryAPI:
+class BusinessMetadataAPI:
     def __init__(self, db_manager: DatabaseManager):
         self.db_manager = db_manager
         self.app = self._create_app()
         self._add_routes()
 
+
+    @asynccontextmanager
+    async def lifespan(self, app: FastAPI):
+        self.db_manager.create_tables()
+        yield
+        self.db_manager.close()
+
+
     def _create_app(self) -> FastAPI:
         app = FastAPI(
-            title="JSON Schema Registry",
-            description="A REST API for managing JSON schemas",
+            title="Business Metadata API",
+            description="A REST API for managing business metadata",
             version="1.0.0",
+            lifespan=self.lifespan
         )
-
-        @app.on_event("startup")
-        async def startup():
-            self.db_manager.create_tables()
 
         return app
 
@@ -148,9 +155,11 @@ class SchemaRegistryAPI:
                     status_code=400, detail=f"Invalid JSON format: {str(e)}"
                 )
 
+            resolved_schema = await _resolve_schema_refs(parsed_schema, db)
+
             try:
-                jsonschema.validators.validator_for(parsed_schema).check_schema(
-                    parsed_schema
+                jsonschema.validators.validator_for(resolved_schema).check_schema(
+                    resolved_schema
                 )
             except SchemaError as e:
                 raise HTTPException(
@@ -239,9 +248,11 @@ class SchemaRegistryAPI:
                         status_code=400, detail=f"Invalid JSON format: {str(e)}"
                     )
 
+                resolved_content = await _resolve_schema_refs(parsed_content, db)
+
                 try:
-                    jsonschema.validators.validator_for(parsed_content).check_schema(
-                        parsed_content
+                    jsonschema.validators.validator_for(resolved_content).check_schema(
+                        resolved_content
                     )
                 except SchemaError as e:
                     raise HTTPException(
@@ -253,7 +264,6 @@ class SchemaRegistryAPI:
                     )
 
                 schema.schema_content = parsed_content
-
 
             db.commit()
             db.refresh(schema)
@@ -280,6 +290,43 @@ class SchemaRegistryAPI:
             print(f"Schema deleted: {schema.name} (UUID: {schema.schema_uuid})")
 
             return {"message": "Schema deleted successfully"}
+
+        @self.app.get(
+            "/schemas/resolve/{schema_uuid}",
+            response_model=SchemaResponse,
+            tags=["JSON Schemas"],
+        )
+        async def resolve_schema(
+            schema_uuid: str, db: Session = Depends(self.db_manager.get_db)
+        ):
+            schema = (
+                db.query(JSONSchemaDB).filter(JSONSchemaDB.schema_uuid == schema_uuid).first()
+            )
+            if not schema:
+                raise HTTPException(status_code=404, detail="Schema not found")
+
+            resolved_schema_dict = await _resolve_schema_refs(schema.schema_content, db)
+
+            resolved_schema: JSONSchemaDB = JSONSchemaDB(
+                schema_uuid=schema.schema_uuid,
+                name=schema.name,
+                description=schema.description,
+                schema_content=resolved_schema_dict
+            )
+
+            try:
+                jsonschema.validators.validator_for(resolved_schema_dict).check_schema(resolved_schema_dict)
+            except SchemaError as e:
+                raise HTTPException(
+                    status_code=400, detail=f"Invalid resolved JSON Schema: {str(e)}"
+                )
+            except Exception as e:
+                raise HTTPException(
+                    status_code=400, detail=f"Schema validation error: {str(e)}"
+                )
+            
+            return json_schema_db_to_response(resolved_schema)
+
 
         @self.app.get(
             "/schemas/name/{schema_name}",
@@ -406,9 +453,11 @@ class SchemaRegistryAPI:
             )
             if not schema_record:
                 raise HTTPException(
-                    status_code=404, 
-                    detail=f"Schema with UUID {dataset.schema_uuid} not found"
+                    status_code=404,
+                    detail=f"Schema with UUID {dataset.schema_uuid} not found",
                 )
+
+            resolved_schema = await _resolve_schema_refs(schema_record.schema_content, db)
 
             try:
                 parsed_content = json.loads(dataset.dataset_content)
@@ -418,16 +467,14 @@ class SchemaRegistryAPI:
                 )
 
             try:
-                validate(instance=parsed_content, schema=schema_record.schema_content)
+                validate(instance=parsed_content, schema=resolved_schema)
             except ValidationError as e:
                 raise HTTPException(
-                    status_code=400, 
-                    detail=f"Dataset validation failed: {e.message}"
+                    status_code=400, detail=f"Dataset validation failed: {e.message}"
                 )
             except Exception as e:
                 raise HTTPException(
-                    status_code=400, 
-                    detail=f"Schema validation error: {str(e)}"
+                    status_code=400, detail=f"Schema validation error: {str(e)}"
                 )
 
             dataset_uuid = str(uuid.uuid4())
@@ -535,21 +582,23 @@ class SchemaRegistryAPI:
                 )
                 if not schema_record:
                     raise HTTPException(
-                        status_code=404, 
-                        detail=f"Schema with UUID {dataset.schema_uuid} not found"
+                        status_code=404,
+                        detail=f"Schema with UUID {dataset.schema_uuid} not found",
                     )
 
+                resolved_schema = await _resolve_schema_refs(schema_record.schema_content, db)
                 try:
-                    validate(instance=parsed_content, schema=schema_record.schema_content)
+                    validate(
+                        instance=parsed_content, schema=resolved_schema
+                    )
                 except ValidationError as e:
                     raise HTTPException(
-                        status_code=400, 
-                        detail=f"Dataset validation failed: {e.message}"
+                        status_code=400,
+                        detail=f"Dataset validation failed: {e.message}",
                     )
                 except Exception as e:
                     raise HTTPException(
-                        status_code=400, 
-                        detail=f"Schema validation error: {str(e)}"
+                        status_code=400, detail=f"Schema validation error: {str(e)}"
                     )
 
                 dataset.dataset_content = parsed_content

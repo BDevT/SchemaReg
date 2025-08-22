@@ -1,5 +1,5 @@
 """
-Database models and Pydantic schemas for JSON Schema Registry
+Database models and Pydantic schemas for Business Metadata API
 """
 
 from typing import Optional
@@ -14,7 +14,7 @@ Base = declarative_base()
 
 
 class JSONSchemaDB(Base):
-    """SQLAlchemy model for JSON schemas"""
+    """SQLAlchemy model for business metadata schemas"""
 
     __tablename__ = "json_schemas"
 

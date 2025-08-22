@@ -4,7 +4,7 @@ postgres_data/
 *.db
 *.lock
 *.DS_Store
-
+jsonPlayground.json
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
