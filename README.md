@@ -1,4 +1,4 @@
-# Schema Reg
+# Business Metadata Registry
 
 A FastAPI-based Business Metadata API
 
@@ -8,7 +8,7 @@ A FastAPI-based Business Metadata API
 
 ```bash
 # SQLite (default)
-docker run -p 8000:8000 -v $(pwd)/data:/app/data ghcr.io/bdevt/schemareg:latest
+docker run -p 8000:8000 -v $(pwd)/data:/app/data ghcr.io/bdevt/business-metadata-registry:latest
 ```
 
 ### Using Docker Compose with PostgreSQL

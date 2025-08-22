@@ -1,5 +1,5 @@
 [project]
-name = "schemareg"
+name = "business-metadata-registry"
 version = "0.1.0"
 description = "Business Metadata API"
 readme = "README.md"
